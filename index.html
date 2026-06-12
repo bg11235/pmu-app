@@ -6,7 +6,7 @@
 <title>Szemöldök detektor</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: system-ui, sans-serif; background: #f5f5f5; color: #1a1a1a; padding: 1rem; }
+  body { font-family: system-ui, sans-serif; background: #f5f5f5; color: #1a1a1a; padding: 1rem; max-width: 680px; margin: 0 auto; }
   h1 { font-size: 20px; font-weight: 600; margin-bottom: 1rem; }
   .card { background: #fff; border: 1px solid #e0e0e0; border-radius: 12px; padding: 1.25rem; margin-bottom: 1rem; }
   .upload-zone { border: 2px dashed #ccc; border-radius: 8px; padding: 2rem; text-align: center; cursor: pointer; transition: background .15s; }
@@ -14,27 +14,46 @@
   .upload-zone p { color: #666; font-size: 15px; margin-top: 8px; }
   #fileIn { display: none; }
   #status { font-size: 14px; color: #555; margin: .5rem 0; min-height: 20px; }
-  #canvasWrap { position: relative; display: none; }
+  #canvasWrap { position: relative; display: inline-block; width: 100%; }
   canvas { display: block; max-width: 100%; border-radius: 8px; }
   #overlay { position: absolute; top: 0; left: 0; pointer-events: none; }
   .legend { display: flex; gap: 12px; flex-wrap: wrap; margin-top: .75rem; font-size: 13px; }
   .leg { display: flex; align-items: center; gap: 6px; }
-  .dot { width: 12px; height: 12px; border-radius: 50%; }
+  .ldot { width: 12px; height: 12px; border-radius: 50%; }
   button { padding: .45rem 1rem; border-radius: 8px; border: 1px solid #ccc; background: #fff; cursor: pointer; font-size: 14px; margin-top: .75rem; margin-right: 6px; }
   button:hover { background: #f0f0f0; }
   button.primary { background: #7c6fcd; color: #fff; border-color: #7c6fcd; }
   button.primary:hover { background: #6558b5; }
-  #debugInfo { font-size: 12px; color: #888; margin-top: .5rem; font-family: monospace; white-space: pre-wrap; }
+  #debugInfo { font-size: 12px; color: #888; margin-top: .75rem; font-family: monospace; white-space: pre-wrap; background: #f9f9f9; padding: .5rem; border-radius: 6px; }
+
+  /* Enhance panel */
+  #enhancePanel { display: none; }
+  .enhance-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: .75rem; }
+  .enhance-header h3 { font-size: 15px; font-weight: 600; }
+  .toggle-wrap { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #555; }
+  .toggle { position: relative; width: 40px; height: 22px; }
+  .toggle input { opacity: 0; width: 0; height: 0; }
+  .slider-tog { position: absolute; inset: 0; background: #ccc; border-radius: 22px; cursor: pointer; transition: .2s; }
+  .slider-tog:before { content:''; position: absolute; width: 16px; height: 16px; left: 3px; bottom: 3px; background: #fff; border-radius: 50%; transition: .2s; }
+  input:checked + .slider-tog { background: #7c6fcd; }
+  input:checked + .slider-tog:before { transform: translateX(18px); }
+  .srow { display: flex; align-items: center; gap: 10px; margin-bottom: .55rem; }
+  .srow label { font-size: 13px; color: #555; min-width: 110px; }
+  .srow input[type=range] { flex: 1; }
+  .srow span { font-size: 13px; font-weight: 500; min-width: 40px; text-align: right; }
+  .enhance-btns { display: flex; gap: 8px; margin-top: .5rem; flex-wrap: wrap; }
+  .enhance-btns button { margin-top: 0; font-size: 13px; padding: .35rem .8rem; }
+  .badge { display: inline-block; font-size: 11px; background: #7c6fcd; color: #fff; border-radius: 20px; padding: 1px 8px; margin-left: 6px; vertical-align: middle; }
 </style>
 </head>
 <body>
-<h1>Szemöldök detektor – arc landmark teszt</h1>
+<h1>Szemöldök detektor</h1>
 
 <div class="card" id="uploadCard">
   <div class="upload-zone" onclick="document.getElementById('fileIn').click()">
-    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#aaa" stroke-width="1.5" style="margin:0 auto;display:block"><path d="M12 16V8m0 0-3 3m3-3 3 3"/><rect x="3" y="3" width="18" height="18" rx="3"/></svg>
+    <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#aaa" stroke-width="1.5" style="margin:0 auto;display:block"><path d="M12 16V8m0 0-3 3m3-3 3 3"/><rect x="3" y="3" width="18" height="18" rx="3"/></svg>
     <p>Kattints ide és tölts fel egy selfiet vagy arcképet</p>
-    <p style="font-size:13px;margin-top:4px;color:#aaa">JPG vagy PNG</p>
+    <p style="font-size:12px;margin-top:4px;color:#aaa">JPG vagy PNG</p>
   </div>
   <input type="file" id="fileIn" accept="image/*">
 </div>
@@ -42,16 +61,45 @@
 <div id="status"></div>
 
 <div class="card" id="resultCard" style="display:none">
+
+  <!-- Enhance panel -->
+  <div id="enhancePanel">
+    <div class="enhance-header">
+      <h3>✨ Auto Enhance <span class="badge">Új</span></h3>
+      <div class="toggle-wrap">
+        <span>Be/ki</span>
+        <label class="toggle"><input type="checkbox" id="enhanceToggle" onchange="toggleEnhance()"><span class="slider-tog"></span></label>
+      </div>
+    </div>
+    <div id="enhanceControls" style="opacity:.4;pointer-events:none">
+      <div class="srow">
+        <label>🌡 Színhőmérséklet</label>
+        <input type="range" id="tempSlider" min="-100" max="100" value="0" step="1" oninput="applyEnhance()">
+        <span id="tempVal">0</span>
+      </div>
+      <div class="srow">
+        <label>☀️ Auto expozíció</label>
+        <input type="range" id="expSlider" min="-100" max="100" value="0" step="1" oninput="applyEnhance()">
+        <span id="expVal">0</span>
+      </div>
+      <div class="enhance-btns">
+        <button onclick="autoEnhance()">⚡ Auto</button>
+        <button onclick="resetEnhance()">Visszaállít</button>
+      </div>
+    </div>
+    <hr style="margin:.75rem 0;border:none;border-top:1px solid #eee">
+  </div>
+
   <div id="canvasWrap">
     <canvas id="main"></canvas>
     <canvas id="overlay"></canvas>
   </div>
 
   <div class="legend">
-    <div class="leg"><div class="dot" style="background:#00ff88"></div>Bal szemöldök (10 pont)</div>
-    <div class="leg"><div class="dot" style="background:#ff6b6b"></div>Jobb szemöldök (10 pont)</div>
-    <div class="leg"><div class="dot" style="background:#4488ff"></div>Szemek</div>
-    <div class="leg"><div class="dot" style="background:#ffaa00"></div>Orr</div>
+    <div class="leg"><div class="ldot" style="background:#00ff88"></div>Bal szemöldök</div>
+    <div class="leg"><div class="ldot" style="background:#ff6b6b"></div>Jobb szemöldök</div>
+    <div class="leg"><div class="ldot" style="background:#4488ff"></div>Szemek</div>
+    <div class="leg"><div class="ldot" style="background:#ffaa00"></div>Orr</div>
   </div>
 
   <div>
@@ -64,16 +112,16 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js"></script>
 <script>
-// Landmark indexek MediaPipe Face Mesh-ben
-const LEFT_BROW  = [70, 63, 105, 66, 107, 55, 65, 52, 53, 46];
-const RIGHT_BROW = [300, 293, 334, 296, 336, 285, 295, 282, 283, 276];
-const LEFT_EYE   = [33, 7, 163, 144, 145, 153, 154, 155, 133, 246];
-const RIGHT_EYE  = [362, 382, 381, 380, 374, 373, 390, 249, 263, 466];
-const NOSE_TIP   = [1, 2, 98, 327];
+const LEFT_BROW  = [70,63,105,66,107,55,65,52,53,46];
+const RIGHT_BROW = [300,293,334,296,336,285,295,282,283,276];
+const LEFT_EYE   = [33,7,163,144,145,153,154,155,133,246];
+const RIGHT_EYE  = [362,382,381,380,374,373,390,249,263,466];
+const NOSE_TIP   = [1,2,98,327];
 
 let landmarks = null;
-let imgEl = null;
+let origImageData = null;
 let showOverlay = true;
+let enhanceOn = false;
 
 function setStatus(msg, color) {
   const el = document.getElementById('status');
@@ -81,165 +129,226 @@ function setStatus(msg, color) {
   el.style.color = color || '#555';
 }
 
+// ── ENHANCE ──────────────────────────────────────────────
+function toggleEnhance() {
+  enhanceOn = document.getElementById('enhanceToggle').checked;
+  document.getElementById('enhanceControls').style.opacity = enhanceOn ? '1' : '.4';
+  document.getElementById('enhanceControls').style.pointerEvents = enhanceOn ? '' : 'none';
+  if (!enhanceOn) { resetEnhance(); } else { applyEnhance(); }
+}
+
+function applyEnhance() {
+  if (!origImageData) return;
+  const mc = document.getElementById('main');
+  const ctx = mc.getContext('2d');
+  const W = mc.width, H = mc.height;
+
+  // Visszaállítjuk az eredetit
+  ctx.putImageData(origImageData, 0, 0);
+
+  if (!enhanceOn) { redrawLandmarks(); return; }
+
+  const temp = parseInt(document.getElementById('tempSlider').value);
+  const exp  = parseInt(document.getElementById('expSlider').value);
+  document.getElementById('tempVal').textContent = temp > 0 ? '+'+temp : temp;
+  document.getElementById('expVal').textContent  = exp  > 0 ? '+'+exp  : exp;
+
+  const imgData = ctx.getImageData(0, 0, W, H);
+  const d = imgData.data;
+
+  // Expozíció: gamma alapú brightness
+  const expFactor = exp / 100;
+  const gamma = expFactor >= 0
+    ? 1 / (1 + expFactor * 1.5)   // világosítás
+    : 1 + (-expFactor * 1.5);     // sötétítés
+
+  // Színhőmérséklet: R/B csatornák tolása
+  const tR = temp > 0 ?  (temp / 100) * 40 : 0;   // meleg → több vörös
+  const tB = temp < 0 ? (-temp / 100) * 40 : 0;   // hideg → több kék
+  const tRn = temp < 0 ? (-temp / 100) * 15 : 0;  // hideg → kicsit kevesebb vörös
+  const tBn = temp > 0 ?  (temp / 100) * 15 : 0;  // meleg → kicsit kevesebb kék
+
+  for (let i = 0; i < d.length; i += 4) {
+    let r = d[i], g = d[i+1], b = d[i+2];
+
+    // Expozíció (gamma)
+    r = 255 * Math.pow(r/255, gamma);
+    g = 255 * Math.pow(g/255, gamma);
+    b = 255 * Math.pow(b/255, gamma);
+
+    // Fehéregyensúly
+    r = r + tR - tRn;
+    b = b + tB - tBn;
+
+    d[i]   = Math.min(255, Math.max(0, r));
+    d[i+1] = Math.min(255, Math.max(0, g));
+    d[i+2] = Math.min(255, Math.max(0, b));
+  }
+
+  ctx.putImageData(imgData, 0, 0);
+  redrawLandmarks();
+}
+
+function autoEnhance() {
+  if (!origImageData) return;
+  // Elemezzük az eredeti kép hisztogramját
+  const d = origImageData.data;
+  let sumR=0, sumG=0, sumB=0, n=d.length/4;
+  for (let i=0; i<d.length; i+=4) { sumR+=d[i]; sumG+=d[i+1]; sumB+=d[i+2]; }
+  const avgR = sumR/n, avgG = sumG/n, avgB = sumB/n;
+  const avg = (avgR+avgG+avgB)/3;
+
+  // Expozíció: ha az átlag sötét, világosítunk
+  const targetBrightness = 128;
+  const expAdj = Math.round(((targetBrightness - avg) / targetBrightness) * 60);
+  const clampedExp = Math.min(80, Math.max(-80, expAdj));
+
+  // Fehéregyensúly: R-B különbség alapján
+  const rbDiff = avgR - avgB;
+  const tempAdj = Math.round(-rbDiff * 0.8);
+  const clampedTemp = Math.min(80, Math.max(-80, tempAdj));
+
+  document.getElementById('expSlider').value  = clampedExp;
+  document.getElementById('tempSlider').value = clampedTemp;
+  applyEnhance();
+}
+
+function resetEnhance() {
+  document.getElementById('expSlider').value  = 0;
+  document.getElementById('tempSlider').value = 0;
+  document.getElementById('expVal').textContent  = '0';
+  document.getElementById('tempVal').textContent = '0';
+  if (origImageData) {
+    const mc = document.getElementById('main');
+    mc.getContext('2d').putImageData(origImageData, 0, 0);
+    redrawLandmarks();
+  }
+}
+
+// ── LANDMARKS ────────────────────────────────────────────
+function redrawLandmarks() {
+  if (!landmarks) return;
+  const mc = document.getElementById('main');
+  drawLandmarks(landmarks, mc.width, mc.height);
+}
+
 function drawLandmarks(lms, W, H) {
   const oc = document.getElementById('overlay');
   const ctx = oc.getContext('2d');
   ctx.clearRect(0, 0, W, H);
 
-  function drawGroup(pts, color, radius) {
+  function drawDots(pts, color, r) {
     pts.forEach(i => {
-      const x = lms[i].x * W;
-      const y = lms[i].y * H;
       ctx.beginPath();
-      ctx.arc(x, y, radius, 0, Math.PI * 2);
-      ctx.fillStyle = color;
-      ctx.fill();
+      ctx.arc(lms[i].x*W, lms[i].y*H, r, 0, Math.PI*2);
+      ctx.fillStyle = color; ctx.fill();
     });
   }
-
-  // Szemöldök terület kiemelése (konvex hull szerű)
-  function drawBrowArea(pts, color) {
-    const coords = pts.map(i => ({ x: lms[i].x * W, y: lms[i].y * H }));
-    // Felső vonal bal→jobb
-    const sorted = [...coords].sort((a, b) => a.x - b.x);
+  function drawBrowLine(pts, color) {
+    const sorted = [...pts].sort((a,b) => lms[a].x - lms[b].x);
     ctx.beginPath();
-    ctx.moveTo(sorted[0].x, sorted[0].y);
-    sorted.forEach(p => ctx.lineTo(p.x, p.y));
-    ctx.strokeStyle = color;
-    ctx.lineWidth = 2;
-    ctx.stroke();
-    // Pontok
-    drawGroup(pts, color, 3);
+    ctx.moveTo(lms[sorted[0]].x*W, lms[sorted[0]].y*H);
+    sorted.forEach(i => ctx.lineTo(lms[i].x*W, lms[i].y*H));
+    ctx.strokeStyle = color; ctx.lineWidth = 2.5; ctx.stroke();
+    drawDots(pts, color, 3.5);
   }
-
-  drawGroup(LEFT_EYE, 'rgba(68,136,255,0.8)', 2.5);
-  drawGroup(RIGHT_EYE, 'rgba(68,136,255,0.8)', 2.5);
-  drawGroup(NOSE_TIP, 'rgba(255,170,0,0.8)', 3);
-  drawBrowArea(LEFT_BROW, 'rgba(0,255,136,0.9)');
-  drawBrowArea(RIGHT_BROW, 'rgba(255,107,107,0.9)');
-
-  // Szemöldök középpont kiemelése
   function centroid(pts) {
-    let x = 0, y = 0;
-    pts.forEach(i => { x += lms[i].x * W; y += lms[i].y * H; });
-    return { x: x / pts.length, y: y / pts.length };
+    let x=0, y=0;
+    pts.forEach(i => { x+=lms[i].x*W; y+=lms[i].y*H; });
+    return { x:x/pts.length, y:y/pts.length };
   }
 
-  const lc = centroid(LEFT_BROW);
-  const rc = centroid(RIGHT_BROW);
+  drawDots(LEFT_EYE,  'rgba(68,136,255,0.8)', 2.5);
+  drawDots(RIGHT_EYE, 'rgba(68,136,255,0.8)', 2.5);
+  drawDots(NOSE_TIP,  'rgba(255,170,0,0.85)', 3);
+  drawBrowLine(LEFT_BROW,  'rgba(0,255,136,0.95)');
+  drawBrowLine(RIGHT_BROW, 'rgba(255,107,107,0.95)');
 
-  ctx.beginPath();
-  ctx.arc(lc.x, lc.y, 6, 0, Math.PI * 2);
-  ctx.fillStyle = 'rgba(0,255,136,1)';
-  ctx.fill();
-
-  ctx.beginPath();
-  ctx.arc(rc.x, rc.y, 6, 0, Math.PI * 2);
-  ctx.fillStyle = 'rgba(255,107,107,1)';
-  ctx.fill();
+  [{ pts:LEFT_BROW, c:'#00ff88' }, { pts:RIGHT_BROW, c:'#ff6b6b' }].forEach(({pts,c}) => {
+    const {x,y} = centroid(pts);
+    ctx.beginPath(); ctx.arc(x,y,7,0,Math.PI*2); ctx.fillStyle=c; ctx.fill();
+    ctx.beginPath(); ctx.arc(x,y,7,0,Math.PI*2); ctx.strokeStyle='#fff'; ctx.lineWidth=1.5; ctx.stroke();
+  });
 }
 
-function buildDebugInfo(lms, W, H) {
+function buildDebug(lms, W, H) {
   function centroid(pts) {
-    let x = 0, y = 0;
-    pts.forEach(i => { x += lms[i].x * W; y += lms[i].y * H; });
-    return { x: Math.round(x / pts.length), y: Math.round(y / pts.length) };
+    let x=0,y=0; pts.forEach(i=>{x+=lms[i].x*W;y+=lms[i].y*H});
+    return{x:Math.round(x/pts.length),y:Math.round(y/pts.length)};
   }
   function span(pts) {
-    let minX = 1e9, maxX = -1e9, minY = 1e9, maxY = -1e9;
-    pts.forEach(i => {
-      minX = Math.min(minX, lms[i].x * W); maxX = Math.max(maxX, lms[i].x * W);
-      minY = Math.min(minY, lms[i].y * H); maxY = Math.max(maxY, lms[i].y * H);
-    });
-    return { w: Math.round(maxX - minX), h: Math.round(maxY - minY) };
+    let minX=1e9,maxX=-1e9,minY=1e9,maxY=-1e9;
+    pts.forEach(i=>{minX=Math.min(minX,lms[i].x*W);maxX=Math.max(maxX,lms[i].x*W);minY=Math.min(minY,lms[i].y*H);maxY=Math.max(maxY,lms[i].y*H)});
+    return{w:Math.round(maxX-minX),h:Math.round(maxY-minY)};
   }
-  const lc = centroid(LEFT_BROW);
-  const rc = centroid(RIGHT_BROW);
-  const ls = span(LEFT_BROW);
-  const rs = span(RIGHT_BROW);
+  const lc=centroid(LEFT_BROW),rc=centroid(RIGHT_BROW);
+  const ls=span(LEFT_BROW),rs=span(RIGHT_BROW);
   document.getElementById('debugInfo').textContent =
-    `Bal szemöldök  → középpont: (${lc.x}, ${lc.y})  méret: ${ls.w}×${ls.h}px\n` +
-    `Jobb szemöldök → középpont: (${rc.x}, ${rc.y})  méret: ${rs.w}×${rs.h}px\n` +
-    `Kép mérete: ${W}×${H}px  |  Landmarkok: ${lms.length} pont`;
+    `Bal szemöldök  → középpont: (${lc.x}, ${lc.y})  méret: ${ls.w}×${ls.h}px\n`+
+    `Jobb szemöldök → középpont: (${rc.x}, ${rc.y})  méret: ${rs.w}×${rs.h}px\n`+
+    `Kép: ${W}×${H}px  |  ${lms.length} landmark pont`;
 }
 
 function toggleOverlay() {
   showOverlay = !showOverlay;
-  const oc = document.getElementById('overlay');
-  oc.style.display = showOverlay ? '' : 'none';
+  document.getElementById('overlay').style.display = showOverlay ? '' : 'none';
 }
 
 function resetAll() {
-  landmarks = null; imgEl = null;
-  document.getElementById('resultCard').style.display = 'none';
-  document.getElementById('uploadCard').style.display = 'block';
-  document.getElementById('status').textContent = '';
-  document.getElementById('fileIn').value = '';
+  landmarks=null; origImageData=null; enhanceOn=false;
+  document.getElementById('enhanceToggle').checked=false;
+  document.getElementById('enhanceControls').style.opacity='.4';
+  document.getElementById('enhanceControls').style.pointerEvents='none';
+  resetEnhance();
+  document.getElementById('resultCard').style.display='none';
+  document.getElementById('uploadCard').style.display='block';
+  document.getElementById('status').textContent='';
+  document.getElementById('fileIn').value='';
 }
 
-async function runDetection(img, W, H) {
-  setStatus('MediaPipe betöltése és arcfelismerés fut...');
-  return new Promise(resolve => {
-    try {
-      const faceMesh = new FaceMesh({
-        locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${f}`
-      });
-      faceMesh.setOptions({
-        maxNumFaces: 1,
-        refineLandmarks: true,
-        minDetectionConfidence: 0.3,
-        minTrackingConfidence: 0.3
-      });
-      faceMesh.onResults(results => {
-        if (results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0) {
-          landmarks = results.multiFaceLandmarks[0];
-          setStatus(`✓ Arc megtalálva! ${landmarks.length} landmark detektálva. Szemöldök pozíciók kiszámítva.`, '#2a9d5c');
-          drawLandmarks(landmarks, W, H);
-          buildDebugInfo(landmarks, W, H);
-        } else {
-          setStatus('⚠ Arc nem található a képen. Próbálj egy jobb megvilágítású, szemből készült fotót.', '#cc6600');
-        }
-        resolve();
-      });
-      faceMesh.send({ image: img }).catch(err => {
-        setStatus('⚠ Detekció hiba: ' + err.message, '#cc0000');
-        resolve();
-      });
-    } catch (e) {
-      setStatus('⚠ MediaPipe inicializálási hiba: ' + e.message, '#cc0000');
-      resolve();
-    }
-  });
-}
-
+// ── BETÖLTÉS + MEDIAPIPE ─────────────────────────────────
 document.getElementById('fileIn').onchange = async function(e) {
-  const file = e.target.files[0];
-  if (!file) return;
-
+  const file = e.target.files[0]; if (!file) return;
   setStatus('Kép betöltése...');
-  document.getElementById('uploadCard').style.display = 'none';
-  document.getElementById('resultCard').style.display = 'block';
+  document.getElementById('uploadCard').style.display='none';
+  document.getElementById('resultCard').style.display='block';
+  document.getElementById('enhancePanel').style.display='block';
 
-  imgEl = new Image();
-  imgEl.onload = async function() {
-    const maxW = Math.min(640, window.innerWidth - 40);
-    const ratio = Math.min(1, maxW / imgEl.width);
-    const W = Math.round(imgEl.width * ratio);
-    const H = Math.round(imgEl.height * ratio);
+  const img = new Image();
+  img.onload = async function() {
+    const maxW = Math.min(620, window.innerWidth-40);
+    const ratio = Math.min(1, maxW/img.width);
+    const W = Math.round(img.width*ratio);
+    const H = Math.round(img.height*ratio);
 
     const mc = document.getElementById('main');
     const oc = document.getElementById('overlay');
-    mc.width = W; mc.height = H;
-    oc.width = W; oc.height = H;
-    oc.style.width = mc.style.width = W + 'px';
-    oc.style.height = mc.style.height = H + 'px';
+    mc.width=W; mc.height=H; oc.width=W; oc.height=H;
 
-    document.getElementById('canvasWrap').style.display = 'block';
-    mc.getContext('2d').drawImage(imgEl, 0, 0, W, H);
+    const ctx = mc.getContext('2d');
+    ctx.drawImage(img,0,0,W,H);
+    origImageData = ctx.getImageData(0,0,W,H);
 
-    await runDetection(imgEl, W, H);
+    setStatus('Arcfelismerés fut...');
+    try {
+      const fm = new FaceMesh({ locateFile: f=>`https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${f}` });
+      fm.setOptions({ maxNumFaces:1, refineLandmarks:true, minDetectionConfidence:0.3, minTrackingConfidence:0.3 });
+      fm.onResults(r => {
+        if (r.multiFaceLandmarks && r.multiFaceLandmarks.length>0) {
+          landmarks = r.multiFaceLandmarks[0];
+          setStatus('✓ Arc megtalálva! Szemöldök pozíciók detektálva.', '#2a9d5c');
+          drawLandmarks(landmarks, W, H);
+          buildDebug(landmarks, W, H);
+        } else {
+          setStatus('⚠ Arc nem található – próbálj más képet.', '#cc6600');
+        }
+      });
+      await fm.send({ image: img });
+    } catch(e) {
+      setStatus('⚠ Hiba: '+e.message, '#cc0000');
+    }
   };
-  imgEl.src = URL.createObjectURL(file);
+  img.src = URL.createObjectURL(file);
 };
 </script>
 </body>
